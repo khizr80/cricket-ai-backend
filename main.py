@@ -8,17 +8,17 @@ import pandas as pd
 import numpy as np
 import os
 
-# # --- Logging Setup ---
-# os.makedirs('match_winner_output', exist_ok=True)
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format='%(asctime)s %(levelname)s %(message)s',
-#     handlers=[
-#         logging.StreamHandler(),
-#         logging.FileHandler('match_winner_output/prediction.log')
-#     ]
-# )
-# logger = logging.getLogger(__name__)
+# --- Logging Setup ---
+os.makedirs('match_winner_output', exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('match_winner_output/prediction.log')
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # --- FastAPI App Setup ---
 app = FastAPI(title="Cricket Prediction API")
@@ -53,21 +53,21 @@ app.add_middleware(
 #     logger.error(f"Error loading bowling prediction models: {e}")
 #     raise Exception(f"Failed to load bowling prediction models: {e}")
 
-# # Match Winner Prediction
-# try:
-#     match_winner_model = pickle.load(open('match_winner_output/match_winner_model.pkl', 'rb'))
-#     scaler = pickle.load(open('match_winner_output/scaler.pkl', 'rb'))
-#     selector = pickle.load(open('match_winner_output/selector.pkl', 'rb'))
-#     venue_map = pickle.load(open('match_winner_output/venue_mapping.pkl', 'rb'))
-#     player_agg = pd.read_csv('player_aggregate_stats.csv')
-#     team_agg = pd.read_csv('team_aggregate_stats.csv')
-#     team_venue = pd.read_csv('team_venue_aggregate_stats.csv')
-#     team_venue['venue'] = team_venue['venue'].str.strip()
-#     h2h_df = pd.read_csv('head_to_head_stats.csv', index_col=0)
-#     h2h = h2h_df.to_dict()
-# except Exception as e:
-#     logger.error(f"Error loading match winner prediction artifacts: {e}")
-#     raise Exception(f"Failed to load match winner prediction artifacts: {e}")
+# Match Winner Prediction
+try:
+    match_winner_model = pickle.load(open('match_winner_output/match_winner_model.pkl', 'rb'))
+    scaler = pickle.load(open('match_winner_output/scaler.pkl', 'rb'))
+    selector = pickle.load(open('match_winner_output/selector.pkl', 'rb'))
+    venue_map = pickle.load(open('match_winner_output/venue_mapping.pkl', 'rb'))
+    player_agg = pd.read_csv('player_aggregate_stats.csv')
+    team_agg = pd.read_csv('team_aggregate_stats.csv')
+    team_venue = pd.read_csv('team_venue_aggregate_stats.csv')
+    team_venue['venue'] = team_venue['venue'].str.strip()
+    h2h_df = pd.read_csv('head_to_head_stats.csv', index_col=0)
+    h2h = h2h_df.to_dict()
+except Exception as e:
+    logger.error(f"Error loading match winner prediction artifacts: {e}")
+    raise Exception(f"Failed to load match winner prediction artifacts: {e}")
 
 # # --- Pydantic Models ---
 # class PlayerPredictionInput(BaseModel):
