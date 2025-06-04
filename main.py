@@ -194,68 +194,68 @@ app.add_middleware(
 #         'economyRate': round(economy_rate, 2)
 #     }
 
-# @app.post("/predict-match-winner")
-# async def predict_match_winner(input_data: MatchInput):
-#     df = pd.DataFrame([input_data.dict()])
-#     df['venue'] = df['venue'].str.strip()
+@app.post("/predict-match-winner")
+async def predict_match_winner(input_data: MatchInput):
+    df = pd.DataFrame([input_data.dict()])
+    df['venue'] = df['venue'].str.strip()
 
-#     # Validate input columns
-#     for col in ['team', 'opponent', 'venue', 'is_test_match', 'toss_winner', 'toss_decision_field', 'is_tournament_match']:
-#         if col not in df:
-#             raise HTTPException(status_code=400, detail=f"Missing input field: {col}")
+    # Validate input columns
+    for col in ['team', 'opponent', 'venue', 'is_test_match', 'toss_winner', 'toss_decision_field', 'is_tournament_match']:
+        if col not in df:
+            raise HTTPException(status_code=400, detail=f"Missing input field: {col}")
 
-#     # Merge features
-#     df = df.merge(team_agg.add_prefix('team_'), left_on='team', right_on='team_team', how='left').drop(columns='team_team')
-#     df = df.merge(
-#         team_venue[['team', 'venue', 'win_rate']].rename(columns={'win_rate': 'team_venue_win_rate'}),
-#         on=['team', 'venue'], how='left'
-#     )
-#     df = df.merge(build_player_stats(player_agg), on='team', how='left')
-#     df['head_to_head_wins'] = df.apply(lambda r: h2h.get(r['team'], {}).get(r['opponent'], 0), axis=1)
-#     df = add_opponent_win_rate(df, team_agg)
-#     df['is_close_match'] = (df['team_win_rate_diff'].abs() < 0.1).astype(int)
-#     df['recent_win_rate'] = df['team_win_rate'].fillna(0)
+    # Merge features
+    df = df.merge(team_agg.add_prefix('team_'), left_on='team', right_on='team_team', how='left').drop(columns='team_team')
+    df = df.merge(
+        team_venue[['team', 'venue', 'win_rate']].rename(columns={'win_rate': 'team_venue_win_rate'}),
+        on=['team', 'venue'], how='left'
+    )
+    df = df.merge(build_player_stats(player_agg), on='team', how='left')
+    df['head_to_head_wins'] = df.apply(lambda r: h2h.get(r['team'], {}).get(r['opponent'], 0), axis=1)
+    df = add_opponent_win_rate(df, team_agg)
+    df['is_close_match'] = (df['team_win_rate_diff'].abs() < 0.1).astype(int)
+    df['recent_win_rate'] = df['team_win_rate'].fillna(0)
 
-#     # Impute & encode
-#     num_cols = df.select_dtypes(include='number').columns.difference([
-#         'is_test_match', 'toss_winner', 'toss_decision_field', 'is_tournament_match'
-#     ])
-#     for c in num_cols:
-#         df[c].fillna(df[c].median(), inplace=True)
-#     df['venue'] = df['venue'].map(venue_map).fillna(max(venue_map.values()) + 1)
+    # Impute & encode
+    num_cols = df.select_dtypes(include='number').columns.difference([
+        'is_test_match', 'toss_winner', 'toss_decision_field', 'is_tournament_match'
+    ])
+    for c in num_cols:
+        df[c].fillna(df[c].median(), inplace=True)
+    df['venue'] = df['venue'].map(venue_map).fillna(max(venue_map.values()) + 1)
 
-#     features = [
-#         'is_test_match', 'toss_winner', 'toss_decision_field', 'venue',
-#         'head_to_head_wins', 'is_tournament_match',
-#         'team_matches', 'team_wins', 'team_win_rate', 'team_avg_runs', 'team_avg_wickets',
-#         'team_toss_wins', 'team_toss_win_rate', 'team_field_first_rate',
-#         'team_player_avg_runs', 'team_player_avg_strike_rate', 'team_player_avg_wickets',
-#         'team_player_avg_bowling_avg', 'team_player_avg_economy_rate', 'team_player_avg_potm_rate',
-#         'team_top_batsman_avg', 'team_top_bowler_wickets', 'recent_win_rate',
-#         'team_venue_win_rate', 'team_win_rate_diff', 'is_close_match'
-#     ]
-#     X = df[features]
-#     try:
-#         X_scaled = scaler.transform(X)
-#         X_sel = selector.transform(X_scaled)
-#     except Exception as e:
-#         logger.error(f"Error transforming features: {e}")
-#         raise HTTPException(status_code=500, detail=f"Feature transformation error: {e}")
+    features = [
+        'is_test_match', 'toss_winner', 'toss_decision_field', 'venue',
+        'head_to_head_wins', 'is_tournament_match',
+        'team_matches', 'team_wins', 'team_win_rate', 'team_avg_runs', 'team_avg_wickets',
+        'team_toss_wins', 'team_toss_win_rate', 'team_field_first_rate',
+        'team_player_avg_runs', 'team_player_avg_strike_rate', 'team_player_avg_wickets',
+        'team_player_avg_bowling_avg', 'team_player_avg_economy_rate', 'team_player_avg_potm_rate',
+        'team_top_batsman_avg', 'team_top_bowler_wickets', 'recent_win_rate',
+        'team_venue_win_rate', 'team_win_rate_diff', 'is_close_match'
+    ]
+    X = df[features]
+    try:
+        X_scaled = scaler.transform(X)
+        X_sel = selector.transform(X_scaled)
+    except Exception as e:
+        logger.error(f"Error transforming features: {e}")
+        raise HTTPException(status_code=500, detail=f"Feature transformation error: {e}")
 
-#     try:
-#         pred_bin = match_winner_model.predict(X_sel)
-#         prob = match_winner_model.predict_proba(X_sel)[:, 1]
-#     except Exception as e:
-#         logger.error(f"Error during prediction: {e}")
-#         raise HTTPException(status_code=500, detail=f"Prediction error: {e}")
+    try:
+        pred_bin = match_winner_model.predict(X_sel)
+        prob = match_winner_model.predict_proba(X_sel)[:, 1]
+    except Exception as e:
+        logger.error(f"Error during prediction: {e}")
+        raise HTTPException(status_code=500, detail=f"Prediction error: {e}")
 
-#     out = df[['team', 'opponent', 'venue']].copy()
-#     out['win_probability'] = prob
-#     out['predicted_winner'] = np.where(pred_bin == 1, out['team'], out['opponent'])
-#     inv_map = {v: k for k, v in venue_map.items()}
-#     out['venue'] = out['venue'].map(inv_map)
+    out = df[['team', 'opponent', 'venue']].copy()
+    out['win_probability'] = prob
+    out['predicted_winner'] = np.where(pred_bin == 1, out['team'], out['opponent'])
+    inv_map = {v: k for k, v in venue_map.items()}
+    out['venue'] = out['venue'].map(inv_map)
 
-#     return out.to_dict(orient='records')[0]
+    return out.to_dict(orient='records')[0]
 
 @app.get("/")
 async def root():
