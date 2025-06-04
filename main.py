@@ -1,12 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-# from pydantic import BaseModel
-# import joblib
-# import pickle
-# import logging
-# import pandas as pd
-# import numpy as np
-# import os
+from pydantic import BaseModel
+import joblib
+import pickle
+import logging
+import pandas as pd
+import numpy as np
+import os
 
 # # --- Logging Setup ---
 # os.makedirs('match_winner_output', exist_ok=True)
