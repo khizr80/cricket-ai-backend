@@ -81,14 +81,14 @@ except Exception as e:
 #     opponent: str
 #     matchType: str
 
-# class MatchInput(BaseModel):
-#     team: str
-#     opponent: str
-#     venue: str
-#     is_test_match: int
-#     toss_winner: int
-#     toss_decision_field: int
-#     is_tournament_match: int
+class MatchInput(BaseModel):
+    team: str
+    opponent: str
+    venue: str
+    is_test_match: int
+    toss_winner: int
+    toss_decision_field: int
+    is_tournament_match: int
 
 # # --- Helper Functions for Match Winner ---
 # def add_opponent_win_rate(df, team_df):
