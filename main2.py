@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pickle
 import logging
@@ -20,6 +21,15 @@ logger = logging.getLogger(__name__)
 
 # --- FastAPI App Setup ---
 app = FastAPI(title="Cricket Prediction API")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for testing; restrict in production
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods, including OPTIONS
+    allow_headers=["*"],  # Allow all headers
+)
 
 # --- Load Models and Artifacts ---
 try:
@@ -88,13 +98,28 @@ def build_player_stats(df):
 # --- Prediction Endpoint ---
 @app.post("/predict-match-winner")
 async def predict_match_winner(input_data: MatchInput):
+    # Log input for debugging
+    logger.info(f"Received input: {input_data.dict()}")
+
     df = pd.DataFrame([input_data.dict()])
     df['venue'] = df['venue'].str.strip()
 
     # Validate input columns
     for col in ['team', 'opponent', 'venue', 'is_test_match', 'toss_winner', 'toss_decision_field', 'is_tournament_match']:
         if col not in df:
+            logger.error(f"Missing input field: {col}")
             raise HTTPException(status_code=400, detail=f"Missing input field: {col}")
+
+    # Validate input data existence
+    if input_data.team not in team_agg['team'].values:
+        logger.error(f"Team not found: {input_data.team}")
+        raise HTTPException(status_code=400, detail=f"Team not found: {input_data.team}")
+    if input_data.opponent not in team_agg['team'].values:
+        logger.error(f"Opponent not found: {input_data.opponent}")
+        raise HTTPException(status_code=400, detail=f"Opponent not found: {input_data.opponent}")
+    if input_data.venue not in venue_map:
+        logger.error(f"Venue not found: {input_data.venue}")
+        raise HTTPException(status_code=400, detail=f"Venue not found: {input_data.venue}")
 
     # Merge features
     df = df.merge(team_agg.add_prefix('team_'), left_on='team', right_on='team_team', how='left').drop(columns='team_team')
@@ -108,12 +133,20 @@ async def predict_match_winner(input_data: MatchInput):
     df['is_close_match'] = (df['team_win_rate_diff'].abs() < 0.1).astype(int)
     df['recent_win_rate'] = df['team_win_rate'].fillna(0)
 
-    # Impute & encode
+    # Log dataframe state for debugging
+    logger.info(f"Dataframe after feature merging: {df.to_dict()}")
     num_cols = df.select_dtypes(include='number').columns.difference([
         'is_test_match', 'toss_winner', 'toss_decision_field', 'is_tournament_match'
     ])
+    logger.info(f"Numeric columns with NaN: {df[num_cols].isna().sum().to_dict()}")
+    logger.info(f"Numeric columns with Inf: {df[num_cols].eq(np.inf).sum().to_dict()}")
+    logger.info(f"Numeric columns with -Inf: {df[num_cols].eq(-np.inf).sum().to_dict()}")
+
+    # Impute & encode
     for c in num_cols:
-        df[c].fillna(df[c].median(), inplace=True)
+        df[c] = df[c].replace([np.inf, -np.inf], np.nan)  # Replace inf with NaN
+        df[c] = df[c].fillna(df[c].median() if df[c].notna().any() else 0)  # Fallback to 0 if median is NaN
+
     df['venue'] = df['venue'].map(venue_map).fillna(max(venue_map.values()) + 1)
 
     features = [
@@ -126,8 +159,8 @@ async def predict_match_winner(input_data: MatchInput):
         'team_top_batsman_avg', 'team_top_bowler_wickets', 'recent_win_rate',
         'team_venue_win_rate', 'team_win_rate_diff', 'is_close_match'
     ]
-    X = df[features]
     try:
+        X = df[features]
         X_scaled = scaler.transform(X)
         X_sel = selector.transform(X_scaled)
     except Exception as e:
@@ -147,7 +180,15 @@ async def predict_match_winner(input_data: MatchInput):
     inv_map = {v: k for k, v in venue_map.items()}
     out['venue'] = out['venue'].map(inv_map)
 
-    return out.to_dict(orient='records')[0]
+    # Clean output for JSON serialization
+    out = out.replace([np.inf, -np.inf], np.nan)  # Replace inf with NaN
+    out = out.fillna(0)  # Replace NaN with 0 for JSON compatibility
+
+    # Log final output
+    result = out.to_dict(orient='records')[0]
+    logger.info(f"Final output: {result}")
+
+    return result
 
 @app.get("/")
 async def root():
